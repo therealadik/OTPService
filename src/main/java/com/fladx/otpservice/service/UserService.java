@@ -52,7 +52,7 @@ public class UserService implements UserDetailsService {
             throw new EntityExistsException("User already exists");
         }
 
-        if (request.role().equals(UserRole.ADMIN) && existsByUsername(request.username())) {
+        if (request.role().equals(UserRole.ADMIN)) {
             log.info("Admin already exists");
             throw new EntityExistsException("Admin already exists");
         }
