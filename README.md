@@ -59,19 +59,21 @@ docker-compose up -d postgres
 
 ### 1. Регистрация пользователя
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
     "password": "password123",
+    "role": "USER"
     "email": "test@example.com",
-    "phone": "+79991234567"
+    "phoneNumber": "+79991234567",
+    "telegramId": 123456
   }'
 ```
 
 ### 2. Вход в систему
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -79,47 +81,24 @@ curl -X POST http://localhost:8080/api/auth/login \
   }'
 ```
 
-### 3. Отправка OTP через SMS
+### 3. Отправка OTP
 ```bash
-curl -X POST http://localhost:8080/api/otp/send \
+curl -X POST http://localhost:8080/otp \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "phone": "+79991234567",
-    "channel": "SMS"
+    "operationId": 123,
   }'
 ```
 
-### 4. Отправка OTP через Telegram
+### 4. Верификация OTP
 ```bash
-curl -X POST http://localhost:8080/api/otp/send \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "telegramChatId": "YOUR_CHAT_ID",
-    "channel": "TELEGRAM"
-  }'
-```
-
-### 5. Отправка OTP через Email
-```bash
-curl -X POST http://localhost:8080/api/otp/send \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "email": "test@example.com",
-    "channel": "EMAIL"
-  }'
-```
-
-### 6. Верификация OTP
-```bash
-curl -X POST http://localhost:8080/api/otp/verify \
+curl -X POST http://localhost:8080/otp/validate \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "code": "123456",
-    "identifier": "test@example.com"
+    "operationId": 123,
   }'
 ```
 
@@ -128,27 +107,16 @@ curl -X POST http://localhost:8080/api/otp/verify \
 ### База данных
 База данных PostgreSQL запускается автоматически через Docker Compose. Настройки по умолчанию:
 - Порт: 5432
-- Пользователь: postgres
-- Пароль: postgres
-- База данных: otpservice
+- Пользователь: user
+- Пароль: password
+- База данных: postgres
 
 ### SMPP сервер
 - Локальный SMPP сервер должен быть запущен
-- Настройки подключения в `application.yaml`:
-```yaml
-smpp:
-  host: localhost
-  port: 2775
-  systemId: your_system_id
-  password: your_password
-```
+- Настройки подключения в `application.yaml`
 
 ### Почтовый сервер
 - Локальный почтовый сервер запускается автоматически
-- Настройки по умолчанию:
-  - SMTP порт: 1025
-  - POP3 порт: 1100
-  - Web интерфейс: http://localhost:8081
 
 ### Telegram бот
 - Бот доступен по ссылке: [@otp_fladx_bot](https://t.me/otp_fladx_bot)
@@ -172,4 +140,81 @@ smpp:
 
 ## Лицензия
 
-MIT License 
+MIT License
+
+## Архитектура
+
+### Многослойная архитектура
+1. **Controller Layer**
+   - REST API endpoints
+   - Валидация входных данных
+   - Маппинг DTO объектов
+   - Обработка HTTP запросов
+
+2. **Service Layer**
+   - Бизнес-логика приложения
+   - Обработка OTP операций
+   - Управление пользователями
+   - Интеграция с внешними сервисами
+
+3. **Repository Layer**
+   - Взаимодействие с базой данных
+   - JPA репозитории
+   - Кастомные запросы
+
+4. **Integration Layer**
+   - SMPP клиент для отправки SMS
+   - Telegram Bot API
+   - SMTP клиент для отправки email
+   - Внешние API интеграции
+
+5. **Security Layer**
+   - JWT аутентификация
+   - Авторизация на основе ролей
+   - Защита от брутфорса
+   - Валидация токенов
+
+### Компоненты системы
+- **OTP Service**: Основной сервис для генерации и верификации OTP
+- **User Service**: Управление пользователями и их правами
+- **Notification Service**: Отправка уведомлений через разные каналы
+- **Auth Service**: Аутентификация и авторизация
+- **Logging Service**: Централизованное логирование
+
+## Логирование
+
+### Уровни логирования
+- **INFO**: Основные операции (регистрация, вход, отправка OTP)
+- **DEBUG**: Детальная информация о процессах
+- **WARN**: Предупреждения и нестандартные ситуации
+- **ERROR**: Ошибки и исключительные ситуации
+
+### Логируемые события
+1. **Аутентификация**
+   ```log
+   INFO  [AuthService] - Пользователь testuser успешно зарегистрирован
+   INFO  [AuthService] - Пользователь testuser вошел в систему
+   WARN  [AuthService] - Неудачная попытка входа для пользователя testuser
+   ```
+
+2. **OTP Операции**
+   ```log
+   INFO  [OTPService] - OTP отправлен на номер +79991234567
+   INFO  [OTPService] - OTP отправлен в Telegram (chatId: 123456)
+   INFO  [OTPService] - OTP отправлен на email test@example.com
+   INFO  [OTPService] - OTP успешно верифицирован для test@example.com
+   ```
+
+3. **Интеграции**
+   ```log
+   INFO  [SMPPClient] - Успешное подключение к SMPP серверу
+   INFO  [TelegramBot] - Бот успешно запущен
+   INFO  [EmailService] - Письмо успешно отправлено
+   ```
+
+4. **Ошибки**
+   ```log
+   ERROR [OTPService] - Ошибка при отправке SMS: Connection timeout
+   ERROR [AuthService] - Неверный токен доступа
+   ERROR [UserService] - Пользователь не найден
+   ```
